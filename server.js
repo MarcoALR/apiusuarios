@@ -30,17 +30,6 @@ app.get("/usuarios", async (req, res) => {
   res.status(200).json(users);
 });
 
-
-
-
-app.get("/", (req, res) => {
-  res.send("API de usuários rodando com sucesso 🚀");
-});
-
-
-
-
-
 // PUT - Atualiza um usuário
 app.put("/usuarios/:id", async (req, res) => {
   try {
