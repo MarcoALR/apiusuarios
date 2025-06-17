@@ -205,6 +205,10 @@ vou importar o token npm install jsonwebtoken para autenticação
 e usar o middleware para proteger as rotas.
 
 
+npm install bcryptjs isso para criptografar a senha do usuário
+
+
+
 toda vez que salva esse arquivo ele restartar o projeto novamente
 'node server.js' usando o comando " node --watch server.js "
 */
