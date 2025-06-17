@@ -2,6 +2,7 @@ import express from "express";
 import { PrismaClient } from "@prisma/client";
 import cors from "cors";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 const app = express();
@@ -23,23 +24,26 @@ function autenticaToken(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // opcional — pode usar req.user depois
+    req.user = decoded;
     next();
   } catch (err) {
     return res.status(401).json({ error: "Token inválido ou expirado" });
   }
 }
 
-// POST - Cria um novo usuário
+// POST - Cria um novo usuário (senha com hash)
 app.post("/usuarios", async (req, res) => {
   try {
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
+
     const user = await prisma.usuarios.create({
       data: {
         name: req.body.name,
         email: req.body.email,
-        password: req.body.password,
+        password: hashedPassword,
       },
     });
+
     res.status(201).json(user);
   } catch (err) {
     res.status(500).json({ error: "Erro ao criar usuário." });
@@ -52,37 +56,45 @@ app.get("/usuarios", autenticaToken, async (req, res) => {
   res.status(200).json(users);
 });
 
-// PUT - Atualiza um usuário (protegida)
+// PUT - Atualiza um usuário (protegida) com hash se senha for alterada
 app.put("/usuarios/:id", autenticaToken, async (req, res) => {
   try {
+    let updatedData = {
+      name: req.body.name,
+      email: req.body.email,
+    };
+
+    if (req.body.password) {
+      const hashedPassword = await bcrypt.hash(req.body.password, 10);
+      updatedData.password = hashedPassword;
+    }
+
     const updatedUser = await prisma.usuarios.update({
-      where: {
-        id: req.params.id,
-      },
-      data: {
-        name: req.body.name,
-        email: req.body.email,
-        password: req.body.password,
-      },
+      where: { id: req.params.id },
+      data: updatedData,
     });
+
     res.status(200).json(updatedUser);
   } catch (err) {
     res.status(500).json({ error: "Erro ao atualizar usuário." });
   }
 });
 
-// POST - LOGIN com JWT + Refresh Token
+// POST - LOGIN com comparação de senha com hash
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
   const user = await prisma.usuarios.findFirst({
-    where: {
-      email,
-      password,
-    },
+    where: { email },
   });
 
   if (!user) {
+    return res.status(401).json({ error: "Email ou senha inválidos" });
+  }
+
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+
+  if (!isPasswordValid) {
     return res.status(401).json({ error: "Email ou senha inválidos" });
   }
 
