@@ -1,12 +1,15 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
-import cors from 'cors';
+import cors from "cors";
+import jwt from "jsonwebtoken";
 
 const prisma = new PrismaClient();
 const app = express();
 
-app.use(cors()); // Permite requisições de outros domínios
+app.use(cors());
 app.use(express.json());
+
+const JWT_SECRET = "3M75yCMTKDVBFK?&W35%F#fYALQ@Lj9&#zfVXgBBWUZ#?JWy4J78h1J@76Gusp**";
 
 // POST - Cria um novo usuário
 app.post("/usuarios", async (req, res) => {
@@ -49,21 +52,7 @@ app.put("/usuarios/:id", async (req, res) => {
   }
 });
 
-// DELETE - Deleta um usuário
-app.delete("/usuarios/:id", async (req, res) => {
-  try {
-    await prisma.usuarios.delete({
-      where: {
-        id: req.params.id,
-      },
-    });
-    res.status(200).json({ message: "Usuário deletado com sucesso!" });
-  } catch (err) {
-    res.status(500).json({ error: "Erro ao deletar usuário." });
-  }
-});
-
-// POST - LOGIN
+// POST - LOGIN com JWT + Refresh Token
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -78,7 +67,60 @@ app.post("/login", async (req, res) => {
     return res.status(401).json({ error: "Email ou senha inválidos" });
   }
 
-  res.status(200).json({ user });
+  const accessToken = jwt.sign(
+    { id: user.id, email: user.email },
+    JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+
+  const refreshToken = jwt.sign(
+    { id: user.id, email: user.email },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+
+  res.status(200).json({ accessToken, refreshToken, usuario: user });
+});
+
+// GET - Valida o accessToken
+app.get("/validate-token", (req, res) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ error: "Token não enviado" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    res.status(200).json({ valid: true, userId: decoded.id });
+  } catch (err) {
+    res.status(401).json({ error: "Token inválido ou expirado" });
+  }
+});
+
+// POST - Refresh token endpoint
+app.post("/refresh-token", (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(401).json({ error: "Refresh token não enviado" });
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken, JWT_SECRET);
+
+    const newAccessToken = jwt.sign(
+      { id: decoded.id, email: decoded.email },
+      JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.status(200).json({ accessToken: newAccessToken });
+  } catch (err) {
+    res.status(401).json({ error: "Refresh token inválido ou expirado" });
+  }
 });
 
 app.listen(3000, () => {
@@ -86,7 +128,7 @@ app.listen(3000, () => {
 });
 
 /* 
-configurar o bamco de dados do mongo db
+configurar o banco de dados do mongo db
         mongo db
       usuario: Marco
     senha: L9wvwMTXDuCRAQd7
@@ -122,11 +164,32 @@ Se os nomes das propriedades no Thunder Client gerenciador estiverem fora do pad
       name: req.body.name,
       email: req.body.email,
       password: req.body.password
-    }
+}
 
  Query params GET serve para LISTAR filtrando, paginar e ordenar os dados
   Exemplo: /usuarios?name=Marco&age=30
 
+vou importar o token npm install jsonwebtoken para autenticação
+e usar o middleware para proteger as rotas.
+
+
 toda vez que salva esse arquivo ele restartar o projeto novamente
 'node server.js' usando o comando " node --watch server.js "
+*/
+
+
+/*  DELETE - Deleta um usuário
+app.delete("/usuarios/:id", async (req, res) => {
+  try {
+    await prisma.usuarios.delete({
+      where: {
+        id: req.params.id,
+      },
+    });
+    res.status(200).json({ message: "Usuário deletado com sucesso!" });
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao deletar usuário." });
+  }
+});
+
 */
