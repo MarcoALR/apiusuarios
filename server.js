@@ -11,6 +11,25 @@ app.use(express.json());
 
 const JWT_SECRET = "3M75yCMTKDVBFK?&W35%F#fYALQ@Lj9&#zfVXgBBWUZ#?JWy4J78h1J@76Gusp**";
 
+// Middleware de autenticação
+function autenticaToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ error: "Token não enviado" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded; // opcional — pode usar req.user depois
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Token inválido ou expirado" });
+  }
+}
+
 // POST - Cria um novo usuário
 app.post("/usuarios", async (req, res) => {
   try {
@@ -27,14 +46,14 @@ app.post("/usuarios", async (req, res) => {
   }
 });
 
-// GET - Lista todos os usuários
-app.get("/usuarios", async (req, res) => {
+// GET - Lista todos os usuários (protegida)
+app.get("/usuarios", autenticaToken, async (req, res) => {
   const users = await prisma.usuarios.findMany();
   res.status(200).json(users);
 });
 
-// PUT - Atualiza um usuário
-app.put("/usuarios/:id", async (req, res) => {
+// PUT - Atualiza um usuário (protegida)
+app.put("/usuarios/:id", autenticaToken, async (req, res) => {
   try {
     const updatedUser = await prisma.usuarios.update({
       where: {
@@ -126,6 +145,7 @@ app.post("/refresh-token", (req, res) => {
 app.listen(3000, () => {
   console.log("Servidor rodando em http://localhost:3000");
 });
+
 
 /* 
 configurar o banco de dados do mongo db
