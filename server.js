@@ -10,7 +10,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const JWT_SECRET = "3M75yCMTKDVBFK?&W35%F#fYALQ@Lj9&#zfVXgBBWUZ#?JWy4J78h1J@76Gusp**";
+const JWT_SECRET = "%M75yCMTKDVBFK?&W35%F#fYALQ@Lj9&#zfVXgBBWUZ#?JWy4J78h1J@76Gusp**";
 
 // Middleware de autenticação
 function autenticaToken(req, res, next) {
@@ -153,6 +153,7 @@ app.post("/refresh-token", (req, res) => {
     res.status(401).json({ error: "Refresh token inválido ou expirado" });
   }
 });
+
 
 app.listen(3000, () => {
   console.log("Servidor rodando em http://localhost:3000");
