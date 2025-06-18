@@ -145,7 +145,7 @@ app.post("/refresh-token", (req, res) => {
     const newAccessToken = jwt.sign(
       { id: decoded.id, email: decoded.email },
       JWT_SECRET,
-      { expiresIn: "24h" }
+      { expiresIn: "1h" }
     );
 
     res.status(200).json({ accessToken: newAccessToken });
