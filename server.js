@@ -3,16 +3,13 @@ import { PrismaClient } from "@prisma/client";
 import cors from "cors";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-
 const prisma = new PrismaClient();
 const app = express();
-
-// CORS corrigido:
 const corsOptions = {
   origin: [
-    'https://agenda-pj.vercel.app',    // FRONT no Vercel
-    'http://localhost:3000',           // Desenvolvimento local
-    'http://localhost'                 // Localhost alternativo
+    'https://agenda-pj.vercel.app', 
+    'http://localhost:3000',          
+    'http://localhost'          
   ],
   credentials: true
 };
@@ -178,6 +175,7 @@ app.post("/refresh-token", (req, res) => {
 app.listen(3000, () => {
   console.log("Servidor rodando em http://localhost:3000");
 });
+
 
 /* 
 configurar o banco de dados do mongo db
