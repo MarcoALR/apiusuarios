@@ -10,7 +10,7 @@ const app = express();
 const corsOptions = {
   origin: [
     'https://agenda-pj.vercel.app',
-    'http://localhost:5173'
+    'http://localhost/'
   ],
   credentials: true
 };
