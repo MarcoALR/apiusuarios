@@ -10,7 +10,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const JWT_SECRET = "%M75yCMTKDVBFK?&W35%F#fYALQ@Lj9&#zfVXgBBWUZ#?JWy4J78h1J@76Gusp**";
+const JWT_SECRET =
+  "%M75yCMTKDVBFK?&W35%F#fYALQ@Lj9&#zfVXgBBWUZ#?JWy4J78h1J@76Gusp**";
 
 // Middleware de autenticação
 function autenticaToken(req, res, next) {
@@ -82,10 +83,15 @@ app.put("/usuarios/:id", autenticaToken, async (req, res) => {
 
 // POST - LOGIN com comparação de senha com hash
 app.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  const { login, password } = req.body;
 
   const user = await prisma.usuarios.findFirst({
-    where: { email },
+    where: {
+      OR: [
+        { email: login },
+        { name: login }
+      ]
+    }
   });
 
   if (!user) {
@@ -154,11 +160,9 @@ app.post("/refresh-token", (req, res) => {
   }
 });
 
-
 app.listen(3000, () => {
   console.log("Servidor rodando em http://localhost:3000");
 });
-
 
 /* 
 configurar o banco de dados do mongo db
@@ -213,7 +217,6 @@ npm install bcryptjs isso para criptografar a senha do usuário
 toda vez que salva esse arquivo ele restartar o projeto novamente
 'node server.js' usando o comando " node --watch server.js "
 */
-
 
 /*  DELETE - Deleta um usuário
 app.delete("/usuarios/:id", async (req, res) => {
