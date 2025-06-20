@@ -3,7 +3,10 @@ import { PrismaClient } from "@prisma/client";
 import cors from "cors";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import nodemailer from "nodemailer";
+import axios from "axios";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const prisma = new PrismaClient({
   errorFormat: "pretty",
@@ -24,16 +27,8 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-const JWT_SECRET =
-  "%M75yCMTKDVBFK?&W35%F#fYALQ@Lj9&#zfVXgBBWUZ#?JWy4J78h1J@76Gusp**";
-
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: "agenda.pj2025@gmail.com",
-    pass: "csjgvqbxpfcfonaf",
-  },
-});
+const JWT_SECRET = process.env.JWT_SECRET;
+const ELASTIC_API_KEY = process.env.ELASTIC_API_KEY;
 
 function autenticaToken(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -123,11 +118,9 @@ app.post("/login", async (req, res) => {
     return res.status(401).json({ error: "Email ou senha inválidos" });
   }
 
-  const accessToken = jwt.sign(
-    { id: user.id, email: user.email },
-    JWT_SECRET,
-    { expiresIn: "1h" }
-  );
+  const accessToken = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
+    expiresIn: "1h",
+  });
 
   const refreshToken = jwt.sign(
     { id: user.id, email: user.email },
@@ -136,31 +129,30 @@ app.post("/login", async (req, res) => {
   );
 
   try {
-    await transporter.sendMail({
-      from: '"Agenda PJ" <agenda.pj2025@gmail.com>',
-      to: user.email,
-      subject: "Login realizado com sucesso no Agenda PJ",
-      html: `
-        <h2>👋Olá ${user.name},</h2>
-        <p>Você realizou login com sucesso no sistema <strong>Agenda PJ</strong>.</p>
-        <p>Se não foi você, recomendamos trocar sua senha.</p>
-        <br/>
-        <p style="color:#888;">Mensagem automática do sistema Agenda PJ</p>
-        <br/>
-        <img src="cid:logoagenda" alt="Agenda PJ" width="150" />
-      `,
-      attachments: [
-        {
-          filename: 'agendaPJlogo.png',
-          path: './agendaPJlogo.png',
-          cid: 'logoagenda',
-        },
-      ],
+    await axios.post("https://api.elasticemail.com/v2/email/send", null, {
+      params: {
+        apikey: ELASTIC_API_KEY,
+        subject: "Login realizado com sucesso no Agenda PJ",
+        from: "agenda.pj2025@gmail.com",
+        fromName: "Agenda PJ",
+        to: user.email,
+        bodyHtml: `
+          <h2>👋Olá ${user.name},</h2>
+          <p>Você realizou login com sucesso no sistema <strong>Agenda PJ</strong>.</p>
+          <p>Se não foi você, recomendamos trocar sua senha.</p>
+          <br/>
+          <p style="color:#888;">Mensagem automática do sistema Agenda PJ</p>
+          <img src="https://agenda-pj.vercel.app/agendapjlogo.png" width="150" />
+        `,
+      },
     });
 
     console.log("Email enviado para:", user.email);
   } catch (emailError) {
-    console.error("Erro ao enviar email:", emailError);
+    console.error(
+      "Erro ao enviar email:",
+      emailError?.response?.data || emailError
+    );
   }
 
   res.status(200).json({ accessToken, refreshToken, usuario: user });
