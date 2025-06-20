@@ -7,9 +7,15 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 const app = express();
 
-app.use(cors({
-  origin: 'https://agenda-pj.vercel.app'
-}));
+const corsOptions = {
+  origin: [
+    'https://agenda-pj.vercel.app',
+    'http://localhost:5173'
+  ],
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 const JWT_SECRET =
