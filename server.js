@@ -30,8 +30,8 @@ const JWT_SECRET =
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: "agenda.pj2025@gmail.com",  
-    pass: "Marco007@.",        
+    user: "agenda.pj2025@gmail.com",
+    pass: "csjgvqbxpfcfonaf",
   },
 });
 
@@ -146,7 +146,16 @@ app.post("/login", async (req, res) => {
         <p>Se não foi você, recomendamos trocar sua senha.</p>
         <br/>
         <p style="color:#888;">Mensagem automática do sistema Agenda PJ</p>
+        <br/>
+        <img src="cid:logoagenda" alt="Agenda PJ" width="150" />
       `,
+      attachments: [
+        {
+          filename: 'agendaPJlogo.png',
+          path: './agendaPJlogo.png',
+          cid: 'logoagenda',
+        },
+      ],
     });
 
     console.log("Email enviado para:", user.email);
@@ -156,6 +165,7 @@ app.post("/login", async (req, res) => {
 
   res.status(200).json({ accessToken, refreshToken, usuario: user });
 });
+
 app.get("/validate-token", (req, res) => {
   const authHeader = req.headers.authorization;
 
@@ -172,6 +182,7 @@ app.get("/validate-token", (req, res) => {
     res.status(401).json({ error: "Token inválido ou expirado" });
   }
 });
+
 app.post("/refresh-token", (req, res) => {
   const { refreshToken } = req.body;
 
