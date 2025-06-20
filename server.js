@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import cors from "cors";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
 
 const prisma = new PrismaClient({
   errorFormat: "pretty",
@@ -26,7 +27,14 @@ app.use(express.json());
 const JWT_SECRET =
   "%M75yCMTKDVBFK?&W35%F#fYALQ@Lj9&#zfVXgBBWUZ#?JWy4J78h1J@76Gusp**";
 
-// Middleware de autenticação
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: "agenda.pj2025@gmail.com",  
+    pass: "Marco007@.",        
+  },
+});
+
 function autenticaToken(req, res, next) {
   const authHeader = req.headers.authorization;
 
@@ -45,7 +53,6 @@ function autenticaToken(req, res, next) {
   }
 }
 
-// POST - Cria um novo usuário (senha com hash)
 app.post("/usuarios", async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(req.body.password, 10);
@@ -69,13 +76,11 @@ app.post("/usuarios", async (req, res) => {
   }
 });
 
-// GET - Lista todos os usuários (protegida)
 app.get("/usuarios", autenticaToken, async (req, res) => {
   const users = await prisma.usuarios.findMany();
   res.status(200).json(users);
 });
 
-// PUT - Atualiza um usuário (protegida)
 app.put("/usuarios/:id", autenticaToken, async (req, res) => {
   try {
     let updatedData = {
@@ -99,7 +104,6 @@ app.put("/usuarios/:id", autenticaToken, async (req, res) => {
   }
 });
 
-// POST - LOGIN
 app.post("/login", async (req, res) => {
   const { login, password } = req.body;
 
@@ -131,10 +135,27 @@ app.post("/login", async (req, res) => {
     { expiresIn: "7d" }
   );
 
+  try {
+    await transporter.sendMail({
+      from: '"Agenda PJ" <agenda.pj2025@gmail.com>',
+      to: user.email,
+      subject: "Login realizado com sucesso no Agenda PJ",
+      html: `
+        <h2>👋Olá ${user.name},</h2>
+        <p>Você realizou login com sucesso no sistema <strong>Agenda PJ</strong>.</p>
+        <p>Se não foi você, recomendamos trocar sua senha.</p>
+        <br/>
+        <p style="color:#888;">Mensagem automática do sistema Agenda PJ</p>
+      `,
+    });
+
+    console.log("Email enviado para:", user.email);
+  } catch (emailError) {
+    console.error("Erro ao enviar email:", emailError);
+  }
+
   res.status(200).json({ accessToken, refreshToken, usuario: user });
 });
-
-// GET - Valida o token
 app.get("/validate-token", (req, res) => {
   const authHeader = req.headers.authorization;
 
@@ -151,8 +172,6 @@ app.get("/validate-token", (req, res) => {
     res.status(401).json({ error: "Token inválido ou expirado" });
   }
 });
-
-// POST - Refresh token
 app.post("/refresh-token", (req, res) => {
   const { refreshToken } = req.body;
 
@@ -175,7 +194,6 @@ app.post("/refresh-token", (req, res) => {
   }
 });
 
-// DELETE - Deleta usuário
 app.delete("/usuarios/:id", autenticaToken, async (req, res) => {
   try {
     await prisma.usuarios.delete({
@@ -186,6 +204,7 @@ app.delete("/usuarios/:id", autenticaToken, async (req, res) => {
     res.status(500).json({ error: "Erro ao deletar usuário." });
   }
 });
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
