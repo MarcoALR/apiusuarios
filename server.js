@@ -3,15 +3,21 @@ import { PrismaClient } from "@prisma/client";
 import cors from "cors";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-const prisma = new PrismaClient();
+
+const prisma = new PrismaClient({
+  errorFormat: "pretty",
+  log: ["warn", "error"],
+});
+
 const app = express();
+
 const corsOptions = {
   origin: [
-    'https://agenda-pj.vercel.app', 
-    'http://localhost:3000',          
-    'http://localhost'          
+    "https://agenda-pj.vercel.app",
+    "http://localhost:3000",
+    "http://localhost",
   ],
-  credentials: true
+  credentials: true,
 };
 
 app.use(cors(corsOptions));
@@ -69,7 +75,7 @@ app.get("/usuarios", autenticaToken, async (req, res) => {
   res.status(200).json(users);
 });
 
-// PUT - Atualiza um usuário (protegida) com hash se senha for alterada
+// PUT - Atualiza um usuário (protegida)
 app.put("/usuarios/:id", autenticaToken, async (req, res) => {
   try {
     let updatedData = {
@@ -93,17 +99,14 @@ app.put("/usuarios/:id", autenticaToken, async (req, res) => {
   }
 });
 
-// POST - LOGIN com comparação de senha com hash
+// POST - LOGIN
 app.post("/login", async (req, res) => {
   const { login, password } = req.body;
 
   const user = await prisma.usuarios.findFirst({
     where: {
-      OR: [
-        { email: login },
-        { name: login }
-      ]
-    }
+      OR: [{ email: login }, { name: login }],
+    },
   });
 
   if (!user) {
@@ -131,7 +134,7 @@ app.post("/login", async (req, res) => {
   res.status(200).json({ accessToken, refreshToken, usuario: user });
 });
 
-// GET - Valida o accessToken
+// GET - Valida o token
 app.get("/validate-token", (req, res) => {
   const authHeader = req.headers.authorization;
 
@@ -149,7 +152,7 @@ app.get("/validate-token", (req, res) => {
   }
 });
 
-// POST - Refresh token endpoint
+// POST - Refresh token
 app.post("/refresh-token", (req, res) => {
   const { refreshToken } = req.body;
 
@@ -172,72 +175,11 @@ app.post("/refresh-token", (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log("Servidor rodando em http://localhost:3000");
-});
-
-
-/* 
-configurar o banco de dados do mongo db
-        mongo db
-      usuario: Marco
-    senha: L9wvwMTXDuCRAQd7
-
-
-Sempre que você altera o modelo no schema.prisma 
-(como trocar usuario para usuarios, mudar campos, etc.), é obrigatório rodar:
-npx prisma db push
-
-
-mongodb+srv://Marco:"CHAVEDEACESSO"@users.twjeorl.mongodb.net/"NOEMDOBANCO"?retryWrites=true&w=majority&appName=Users
-
-criar a API de listagem de usuarios com => GET POST DELETE PUT 
-
-1)tipo de rota / metodo http  GET POST DELETE PUT PACHT
-
-2)endereço
-
-      ctrl + c para parar o servidor
-
- configurando o gerenciador do mongo db pelo visual studio code 
-
- 1)npm install prisma --save-dev   
- 2)npx prisma init cria os arquivos de configuração do prisma
- 3)configurar o banco de dados no arquivo .env   
- 4)configurar o arquivo schema.prisma
-5) npx prisma db push  //  faz que o @unique funcione O BD É NAO TENHA JEITO DE REPETIR OS EMAILS
-6) npm install @prisma/client // instala o cliente do prisma
-7) npx prisma studio // abre o banco de dados no navegador
-9)
-Se os nomes das propriedades no Thunder Client gerenciador estiverem fora do padrão, o backend não aceita.
-   data: {
-      name: req.body.name,
-      email: req.body.email,
-      password: req.body.password
-}
-
- Query params GET serve para LISTAR filtrando, paginar e ordenar os dados
-  Exemplo: /usuarios?name=Marco&age=30
-
-vou importar o token npm install jsonwebtoken para autenticação
-e usar o middleware para proteger as rotas.
-
-
-npm install bcryptjs isso para criptografar a senha do usuário
-
-
-
-toda vez que salva esse arquivo ele restartar o projeto novamente
-'node server.js' usando o comando " node --watch server.js "
-*/
-
-/*  DELETE - Deleta um usuário
-app.delete("/usuarios/:id", async (req, res) => {
+// DELETE - Deleta usuário
+app.delete("/usuarios/:id", autenticaToken, async (req, res) => {
   try {
     await prisma.usuarios.delete({
-      where: {
-        id: req.params.id,
-      },
+      where: { id: req.params.id },
     });
     res.status(200).json({ message: "Usuário deletado com sucesso!" });
   } catch (err) {
@@ -245,4 +187,8 @@ app.delete("/usuarios/:id", async (req, res) => {
   }
 });
 
-*/
+// Porta
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Servidor rodando na porta ${port}`);
+});
