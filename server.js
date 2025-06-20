@@ -4,7 +4,7 @@ import cors from "cors";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
-import sgMail from "@sendgrid/mail";
+import nodemailer from "nodemailer";
 
 dotenv.config();
 
@@ -28,11 +28,17 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-const EMAIL_FROM = process.env.EMAIL_FROM;
 
-sgMail.setApiKey(SENDGRID_API_KEY);
+// Configuração do transporter do nodemailer com Gmail
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_FROM,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
+// Middleware para autenticar token
 function autenticaToken(req, res, next) {
   const authHeader = req.headers.authorization;
 
@@ -51,6 +57,7 @@ function autenticaToken(req, res, next) {
   }
 }
 
+// Rota para criar usuário
 app.post("/usuarios", async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(req.body.password, 10);
@@ -63,6 +70,23 @@ app.post("/usuarios", async (req, res) => {
       },
     });
 
+    // Enviar e-mail de boas-vindas
+    const mailOptions = {
+      from: process.env.EMAIL_FROM,
+      to: user.email,
+      subject: "Bem-vindo ao Agenda PJ!",
+      html: `
+        <h2>Olá ${user.name},</h2>
+        <p>Seu cadastro foi realizado com sucesso no sistema <strong>Agenda PJ</strong>.</p>
+        <p>Agora você pode acessar com seu e-mail e senha cadastrados.</p>
+        <br/>
+        <p style="color:#888;">Mensagem automática do sistema Agenda PJ</p>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Email de boas-vindas enviado para: ${user.email}`);
+
     res.status(201).json(user);
   } catch (err) {
     if (err.code === "P2002" && err.meta?.target?.includes("email")) {
@@ -72,6 +96,39 @@ app.post("/usuarios", async (req, res) => {
     console.error("Erro ao criar usuário:", err);
     res.status(500).json({ error: "Erro interno ao criar usuário." });
   }
+});
+
+// Resto das rotas (login, usuários, refresh token, deletar, etc)
+app.post("/login", async (req, res) => {
+  const { login, password } = req.body;
+
+  const user = await prisma.usuarios.findFirst({
+    where: {
+      OR: [{ email: login }, { name: login }],
+    },
+  });
+
+  if (!user) {
+    return res.status(401).json({ error: "Email ou senha inválidos" });
+  }
+
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+
+  if (!isPasswordValid) {
+    return res.status(401).json({ error: "Email ou senha inválidos" });
+  }
+
+  const accessToken = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
+    expiresIn: "1h",
+  });
+
+  const refreshToken = jwt.sign(
+    { id: user.id, email: user.email },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+
+  res.status(200).json({ accessToken, refreshToken, usuario: user });
 });
 
 app.get("/usuarios", autenticaToken, async (req, res) => {
@@ -102,73 +159,14 @@ app.put("/usuarios/:id", autenticaToken, async (req, res) => {
   }
 });
 
-app.post("/login", async (req, res) => {
-  const { login, password } = req.body;
-
-  const user = await prisma.usuarios.findFirst({
-    where: {
-      OR: [{ email: login }, { name: login }],
-    },
-  });
-
-  if (!user) {
-    return res.status(401).json({ error: "Email ou senha inválidos" });
-  }
-
-  const isPasswordValid = await bcrypt.compare(password, user.password);
-
-  if (!isPasswordValid) {
-    return res.status(401).json({ error: "Email ou senha inválidos" });
-  }
-
-  const accessToken = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
-    expiresIn: "1h",
-  });
-
-  const refreshToken = jwt.sign(
-    { id: user.id, email: user.email },
-    JWT_SECRET,
-    { expiresIn: "7d" }
-  );
-
-  const msg = {
-    to: user.email,
-    from: EMAIL_FROM,
-    subject: "Login realizado com sucesso no Agenda PJ",
-    html: `
-      <h2>👋Olá ${user.name},</h2>
-      <p>Você realizou login com sucesso no sistema <strong>Agenda PJ</strong>.</p>
-      <p>Se não foi você, recomendamos trocar sua senha.</p>
-      <br/>
-      <p style="color:#888;">Mensagem automática do sistema Agenda PJ</p>
-      <img src="https://agenda-pj.vercel.app/agendapjlogo.png" width="150" />
-    `,
-  };
-
+app.delete("/usuarios/:id", autenticaToken, async (req, res) => {
   try {
-    await sgMail.send(msg);
-    console.log("✅ Email enviado para:", user.email);
-  } catch (error) {
-    console.error("❌ Erro ao enviar email:", error?.response?.body || error);
-  }
-
-  res.status(200).json({ accessToken, refreshToken, usuario: user });
-});
-
-app.get("/validate-token", (req, res) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader) {
-    return res.status(401).json({ error: "Token não enviado" });
-  }
-
-  const token = authHeader.split(" ")[1];
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    res.status(200).json({ valid: true, userId: decoded.id });
+    await prisma.usuarios.delete({
+      where: { id: req.params.id },
+    });
+    res.status(200).json({ message: "Usuário deletado com sucesso!" });
   } catch (err) {
-    res.status(401).json({ error: "Token inválido ou expirado" });
+    res.status(500).json({ error: "Erro ao deletar usuário." });
   }
 });
 
@@ -194,17 +192,22 @@ app.post("/refresh-token", (req, res) => {
   }
 });
 
-app.delete("/usuarios/:id", autenticaToken, async (req, res) => {
+app.get("/validate-token", (req, res) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ error: "Token não enviado" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
   try {
-    await prisma.usuarios.delete({
-      where: { id: req.params.id },
-    });
-    res.status(200).json({ message: "Usuário deletado com sucesso!" });
+    const decoded = jwt.verify(token, JWT_SECRET);
+    res.status(200).json({ valid: true, userId: decoded.id });
   } catch (err) {
-    res.status(500).json({ error: "Erro ao deletar usuário." });
+    res.status(401).json({ error: "Token inválido ou expirado" });
   }
 });
-
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
