@@ -7,10 +7,12 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 const app = express();
 
+// CORS corrigido:
 const corsOptions = {
   origin: [
-    'https://apiusuarios-afl5.onrender.com/',
-    'http://localhost/'
+    'https://agenda-pj.vercel.app',    // FRONT no Vercel
+    'http://localhost:3000',           // Desenvolvimento local
+    'http://localhost'                 // Localhost alternativo
   ],
   credentials: true
 };
@@ -63,7 +65,6 @@ app.post("/usuarios", async (req, res) => {
     res.status(500).json({ error: "Erro interno ao criar usuário." });
   }
 });
-
 
 // GET - Lista todos os usuários (protegida)
 app.get("/usuarios", autenticaToken, async (req, res) => {
