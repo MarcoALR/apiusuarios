@@ -55,9 +55,15 @@ app.post("/usuarios", async (req, res) => {
 
     res.status(201).json(user);
   } catch (err) {
-    res.status(500).json({ error: "Erro ao criar usuário." });
+    if (err.code === "P2002" && err.meta?.target?.includes("email")) {
+      return res.status(409).json({ error: "E-mail já cadastrado." });
+    }
+
+    console.error("Erro ao criar usuário:", err);
+    res.status(500).json({ error: "Erro interno ao criar usuário." });
   }
 });
+
 
 // GET - Lista todos os usuários (protegida)
 app.get("/usuarios", autenticaToken, async (req, res) => {
