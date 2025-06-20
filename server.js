@@ -9,7 +9,8 @@ const app = express();
 
 const corsOptions = {
   origin: [
-    'https://agenda-pj.vercel.app'
+    'https://apiusuarios-afl5.onrender.com/',
+    'http://localhost/'
   ],
   credentials: true
 };
