@@ -121,7 +121,6 @@ app.post("/login", async (req, res) => {
   res.status(200).json({ accessToken, refreshToken, usuario: user });
 });
 
-// Enviar e-mail
 app.post("/enviar-email", autenticaToken, async (req, res) => {
   const { to, subject, message } = req.body;
 
@@ -151,8 +150,6 @@ app.post("/enviar-email", autenticaToken, async (req, res) => {
     res.status(500).json({ error: "Erro ao enviar e-mail." });
   }
 });
-
-// Rotas auxiliares
 app.get("/usuarios", autenticaToken, async (req, res) => {
   const users = await prisma.usuarios.findMany();
   res.status(200).json(users);
