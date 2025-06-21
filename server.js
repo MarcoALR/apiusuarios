@@ -20,14 +20,12 @@ const corsOptions = {
     "https://agenda-pj.vercel.app",
     "http://localhost:3000",
     "http://localhost",
-  ],
-  credentials: true,
+  ]
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET;
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -35,6 +33,8 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
 });
+
+const JWT_SECRET = process.env.JWT_SECRET;
 
 function autenticaToken(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -72,7 +72,7 @@ app.post("/usuarios", async (req, res) => {
       subject: "Bem-vindo ao Agenda PJ!",
       html: `
         <div style="background-color:#f9f9f9; padding:20px;">
-          <div style="max-width:600px; margin:0 auto; background-color:#ffffff; padding:30px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1); font-family: Arial, sans-serif; color:#333333;">
+          <div style="max-width:700px; margin:0 auto; background-color:#ffffff; padding:30px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1); font-family: Arial, sans-serif; color:#333333;">
             <div style="text-align:center;">
               <img src="https://agenda-pj.vercel.app/agendapjlogo.png" width="120" alt="Agenda PJ Logo" style="margin-bottom:20px;" />
             </div>
