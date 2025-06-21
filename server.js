@@ -11,7 +11,6 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// CORS liberado para produção e local
 const corsOptions = {
   origin: [
     "https://agenda-pj.vercel.app",
@@ -26,14 +25,12 @@ const prisma = new PrismaClient({
   log: ["warn", "error"],
 });
 
-// JWT
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   console.error("❌ JWT_SECRET não definido no .env");
   process.exit(1);
 }
 
-// Transporter de e-mail (validação na inicialização)
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -49,8 +46,6 @@ transporter.verify((error, success) => {
     console.log("✅ Transporte de e-mail pronto.");
   }
 });
-
-// Middleware para verificar token JWT
 function autenticaToken(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: "Token não enviado" });
@@ -65,7 +60,6 @@ function autenticaToken(req, res, next) {
   }
 }
 
-// Rota de criação de usuário
 app.post("/usuarios", async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -89,7 +83,6 @@ app.post("/usuarios", async (req, res) => {
   }
 });
 
-// Login
 app.post("/login", async (req, res) => {
   const { login, password } = req.body;
 
