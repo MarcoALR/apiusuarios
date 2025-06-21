@@ -28,8 +28,6 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET;
-
-// Configuração do transporter do nodemailer com Gmail
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -38,7 +36,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Middleware para autenticar token
 function autenticaToken(req, res, next) {
   const authHeader = req.headers.authorization;
 
@@ -57,7 +54,6 @@ function autenticaToken(req, res, next) {
   }
 }
 
-// Rota para criar usuário
 app.post("/usuarios", async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(req.body.password, 10);
