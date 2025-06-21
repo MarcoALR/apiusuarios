@@ -36,8 +36,9 @@ const transporter =
         },
       })
     : null;
-    
-const JWT_SECRET = "%M75yCMTKDVBFK?&W35%F#fYALQ@Lj9&#zfVXgBBWUZ#?JWy4J78h1J@76Gusp";
+
+const JWT_SECRET =
+  "%M75yCMTKDVBFK?&W35%F#fYALQ@Lj9&#zfVXgBBWUZ#?JWy4J78h1J@76Gusp";
 
 function autenticaToken(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -99,15 +100,23 @@ app.post("/usuarios", async (req, res) => {
       transporter.sendMail(mailOptions, (error, info) => {
         if (error) {
           console.error("Erro ao enviar e-mail:", error);
-          return res.status(201).json({ user, emailStatus: "Erro ao enviar e-mail." });
+          return res
+            .status(201)
+            .json({ user, emailStatus: "Erro ao enviar e-mail." });
         } else {
           console.log(`✅ Email de boas-vindas enviado para: ${user.email}`);
-          return res.status(201).json({ user, emailStatus: "Email enviado com sucesso!" });
+          return res
+            .status(201)
+            .json({ user, emailStatus: "Email enviado com sucesso!" });
         }
       });
     } else {
-      console.log("⚠️ Email não enviado (EMAIL_FROM ou EMAIL_PASS não definidos).");
-      res.status(201).json({ user, emailStatus: "Email não enviado (sem configuração)." });
+      console.log(
+        "⚠️ Email não enviado (EMAIL_FROM ou EMAIL_PASS não definidos)."
+      );
+      res
+        .status(201)
+        .json({ user, emailStatus: "Email não enviado (sem configuração)." });
     }
   } catch (err) {
     if (err.code === "P2002" && err.meta?.target?.includes("email")) {
@@ -227,6 +236,37 @@ app.get("/validate-token", (req, res) => {
   } catch (err) {
     res.status(401).json({ error: "Token inválido ou expirado" });
   }
+});
+
+app.post("/enviar-email", autenticaToken, async (req, res) => {
+  const { to, subject, message } = req.body;
+
+  if (!transporter) {
+    return res
+      .status(500)
+      .json({ error: "Transporte de email não configurado." });
+  }
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to,
+    subject,
+    html: `
+      <div style="font-family: Arial, sans-serif; font-size:16px;">
+        ${message}
+      </div>
+    `,
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error("Erro ao enviar email manual:", error);
+      res.status(500).json({ error: "Erro ao enviar email manual." });
+    } else {
+      console.log(`✅ Email enviado para ${to}`);
+      res.status(200).json({ message: "Email enviado com sucesso!" });
+    }
+  });
 });
 
 const port = process.env.PORT || 3000;
