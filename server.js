@@ -66,36 +66,41 @@ app.post("/usuarios", async (req, res) => {
       },
     });
 
-const mailOptions = {
-  from: process.env.EMAIL_FROM,
-  to: user.email,
-  subject: "Bem-vindo ao Agenda PJ!",
-  html: `
-    <div style="background-color:#f9f9f9; padding:20px;">
-      <div style="max-width:600px; margin:0 auto; background-color:#ffffff; padding:30px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1); font-family: Arial, sans-serif; color:#333333;">
-        <div style="text-align:center;">
-          <img src="https://agenda-pj.vercel.app/agendapjlogo.png" width="120" alt="Agenda PJ Logo" style="margin-bottom:20px;" />
+    const mailOptions = {
+      from: process.env.EMAIL_FROM,
+      to: user.email,
+      subject: "Bem-vindo ao Agenda PJ!",
+      html: `
+        <div style="background-color:#f9f9f9; padding:20px;">
+          <div style="max-width:600px; margin:0 auto; background-color:#ffffff; padding:30px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1); font-family: Arial, sans-serif; color:#333333;">
+            <div style="text-align:center;">
+              <img src="https://agenda-pj.vercel.app/agendapjlogo.png" width="120" alt="Agenda PJ Logo" style="margin-bottom:20px;" />
+            </div>
+            <h2 style="color:#2c3e50;">👋 Olá ${user.name},</h2>
+            <p style="font-size:16px; line-height:1.6;">
+              Seu cadastro foi realizado com sucesso no sistema <strong>Agenda PJ</strong>.
+            </p>
+            <p style="font-size:16px; line-height:1.6;">
+              Agora você já pode acessar a plataforma usando seu e-mail e senha cadastrados.
+            </p>
+            <hr style="border:none; border-top:1px solid #eeeeee; margin:20px 0;" />
+            <p style="font-size:14px; color:#888888; text-align:center;">
+              Esta é uma mensagem automática do sistema Agenda PJ.
+            </p>
+          </div>
         </div>
-        <h2 style="color:#2c3e50;">👋 Olá ${user.name},</h2>
-        <p style="font-size:16px; line-height:1.6;">
-          Seu cadastro foi realizado com sucesso no sistema <strong>Agenda PJ</strong>.
-        </p>
-        <p style="font-size:16px; line-height:1.6;">
-          Agora você já pode acessar a plataforma usando seu e-mail e senha cadastrados.
-        </p>
-        <hr style="border:none; border-top:1px solid #eeeeee; margin:20px 0;" />
-        <p style="font-size:14px; color:#888888; text-align:center;">
-          Esta é uma mensagem automática do sistema Agenda PJ.
-        </p>
-      </div>
-    </div>
-  `,
-};
+      `,
+    };
 
-    await transporter.sendMail(mailOptions);
-    console.log(`✅ Email de boas-vindas enviado para: ${user.email}`);
-
-    res.status(201).json(user);
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error("Erro ao enviar e-mail:", error);
+        return res.status(201).json({ user, emailStatus: "Erro ao enviar e-mail." });
+      } else {
+        console.log(`✅ Email de boas-vindas enviado para: ${user.email}`);
+        return res.status(201).json({ user, emailStatus: "Email enviado com sucesso!" });
+      }
+    });
   } catch (err) {
     if (err.code === "P2002" && err.meta?.target?.includes("email")) {
       return res.status(409).json({ error: "E-mail já cadastrado." });
