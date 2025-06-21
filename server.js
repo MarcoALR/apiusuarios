@@ -8,46 +8,54 @@ import nodemailer from "nodemailer";
 
 dotenv.config();
 
+const app = express();
+app.use(express.json());
+
+// CORS liberado para produção e local
+const corsOptions = {
+  origin: [
+    "https://agenda-pj.vercel.app",
+    "http://localhost:3000",
+    "http://localhost"
+  ],
+};
+app.use(cors(corsOptions));
+
 const prisma = new PrismaClient({
   errorFormat: "pretty",
   log: ["warn", "error"],
 });
 
-const app = express();
+// JWT
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error("❌ JWT_SECRET não definido no .env");
+  process.exit(1);
+}
 
-const corsOptions = {
-  origin: [
-    "https://agenda-pj.vercel.app",
-    "http://localhost:3000",
-    "http://localhost",
-  ],
-};
+// Transporter de e-mail (validação na inicialização)
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_FROM,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
-app.use(cors(corsOptions));
-app.use(express.json());
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("❌ Falha ao configurar e-mail:", error);
+  } else {
+    console.log("✅ Transporte de e-mail pronto.");
+  }
+});
 
-const transporter =
-  process.env.EMAIL_FROM && process.env.EMAIL_PASS
-    ? nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.EMAIL_FROM,
-          pass: process.env.EMAIL_PASS,
-        },
-      })
-    : null;
-
-const JWT_SECRET = "%M75yCMTKDVBFK?&W35%F#fYALQ@Lj9&#zfVXgBBWUZ#?JWy4J78h1J@76Gusp";
-
+// Middleware para verificar token JWT
 function autenticaToken(req, res, next) {
   const authHeader = req.headers.authorization;
-
-  if (!authHeader) {
-    return res.status(401).json({ error: "Token não enviado" });
-  }
+  if (!authHeader) return res.status(401).json({ error: "Token não enviado" });
 
   const token = authHeader.split(" ")[1];
-
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
@@ -57,30 +65,31 @@ function autenticaToken(req, res, next) {
   }
 }
 
+// Rota de criação de usuário
 app.post("/usuarios", async (req, res) => {
   try {
-    const hashedPassword = await bcrypt.hash(req.body.password, 10);
+    const { name, email, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await prisma.usuarios.create({
       data: {
-        name: req.body.name,
-        email: req.body.email,
+        name,
+        email,
         password: hashedPassword,
       },
     });
 
     res.status(201).json({ user, message: "Usuário criado com sucesso!" });
-
   } catch (err) {
     if (err.code === "P2002" && err.meta?.target?.includes("email")) {
       return res.status(409).json({ error: "E-mail já cadastrado." });
     }
-
     console.error("Erro ao criar usuário:", err);
     res.status(500).json({ error: "Erro interno ao criar usuário." });
   }
 });
 
+// Login
 app.post("/login", async (req, res) => {
   const { login, password } = req.body;
 
@@ -95,7 +104,6 @@ app.post("/login", async (req, res) => {
   }
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
-
   if (!isPasswordValid) {
     return res.status(401).json({ error: "Email ou senha inválidos" });
   }
@@ -113,6 +121,38 @@ app.post("/login", async (req, res) => {
   res.status(200).json({ accessToken, refreshToken, usuario: user });
 });
 
+// Enviar e-mail
+app.post("/enviar-email", autenticaToken, async (req, res) => {
+  const { to, subject, message } = req.body;
+
+  if (!to || !subject || !message) {
+    return res.status(400).json({
+      error: "Campos obrigatórios: to, subject e message.",
+    });
+  }
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to,
+    subject,
+    html: `
+      <div style="font-family: Arial, sans-serif; font-size:16px;">
+        ${message}
+      </div>
+    `,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ E-mail enviado para: ${to}`);
+    res.status(200).json({ message: "E-mail enviado com sucesso!", info });
+  } catch (error) {
+    console.error("❌ Erro ao enviar e-mail:", error);
+    res.status(500).json({ error: "Erro ao enviar e-mail." });
+  }
+});
+
+// Rotas auxiliares
 app.get("/usuarios", autenticaToken, async (req, res) => {
   const users = await prisma.usuarios.findMany();
   res.status(200).json(users);
@@ -120,19 +160,16 @@ app.get("/usuarios", autenticaToken, async (req, res) => {
 
 app.put("/usuarios/:id", autenticaToken, async (req, res) => {
   try {
-    let updatedData = {
-      name: req.body.name,
-      email: req.body.email,
-    };
+    const { name, email, password } = req.body;
+    const data = { name, email };
 
-    if (req.body.password) {
-      const hashedPassword = await bcrypt.hash(req.body.password, 10);
-      updatedData.password = hashedPassword;
+    if (password) {
+      data.password = await bcrypt.hash(password, 10);
     }
 
     const updatedUser = await prisma.usuarios.update({
       where: { id: req.params.id },
-      data: updatedData,
+      data,
     });
 
     res.status(200).json(updatedUser);
@@ -161,7 +198,6 @@ app.post("/refresh-token", (req, res) => {
 
   try {
     const decoded = jwt.verify(refreshToken, JWT_SECRET);
-
     const newAccessToken = jwt.sign(
       { id: decoded.id, email: decoded.email },
       JWT_SECRET,
@@ -182,7 +218,6 @@ app.get("/validate-token", (req, res) => {
   }
 
   const token = authHeader.split(" ")[1];
-
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     res.status(200).json({ valid: true, userId: decoded.id });
@@ -191,37 +226,7 @@ app.get("/validate-token", (req, res) => {
   }
 });
 
-app.post("/enviar-email", autenticaToken, async (req, res) => {
-  const { to, subject, message } = req.body;
-
-  if (!transporter) {
-    return res
-      .status(500)
-      .json({ error: "Transporte de email não configurado." });
-  }
-
-  const mailOptions = {
-    from: process.env.EMAIL_FROM,
-    to,
-    subject,
-    html: `
-      <div style="font-family: Arial, sans-serif; font-size:16px;">
-        ${message}
-      </div>
-    `,
-  };
-
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.error("Erro ao enviar email manual:", error);
-      res.status(500).json({ error: "Erro ao enviar email manual." });
-    } else {
-      console.log(`✅ Email enviado para ${to}`);
-      res.status(200).json({ message: "Email enviado com sucesso!" });
-    }
-  });
-});
-
+// Start do servidor
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`🚀 Servidor rodando na porta ${port}`);
