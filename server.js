@@ -216,7 +216,6 @@ app.get("/validate-token", (req, res) => {
   }
 });
 
-// Start do servidor
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`🚀 Servidor rodando na porta ${port}`);
