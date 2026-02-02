@@ -11,6 +11,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
+// CORREÇÃO NO CORS: Removidas as barras finais dos links de localhost para evitar erros de pré-venda (preflight)
 app.use(cors({
   origin: [
     "https://agenda-pj.vercel.app",
@@ -99,10 +100,10 @@ app.post("/login", async (req, res) => {
     { expiresIn: "7d" }
   );
 
-  // ✅ MANTENDO FORMATO ANTIGO (token)
+  // CORREÇÃO: Enviando o campo 'token' para compatibilidade com o teu frontend
   res.json({
-    token: accessToken,          // 👈 FRONTEND USA ISSO
-    accessToken,                 // mantém compatível
+    token: accessToken, 
+    accessToken,
     refreshToken,
     usuario: user
   });
@@ -110,9 +111,7 @@ app.post("/login", async (req, res) => {
 
 app.post("/refresh-token", (req, res) => {
   const { refreshToken } = req.body;
-  if (!refreshToken) {
-    return res.status(401).json({ error: "Refresh token não enviado" });
-  }
+  if (!refreshToken) return res.status(401).json({ error: "Refresh token não enviado" });
 
   try {
     const decoded = jwt.verify(refreshToken, JWT_SECRET);
@@ -121,11 +120,7 @@ app.post("/refresh-token", (req, res) => {
       JWT_SECRET,
       { expiresIn: "1h" }
     );
-
-    res.json({
-      token: newAccessToken,
-      accessToken: newAccessToken
-    });
+    res.json({ token: newAccessToken, accessToken: newAccessToken });
   } catch {
     res.status(401).json({ error: "Refresh token inválido ou expirado" });
   }
@@ -140,7 +135,7 @@ app.get("/usuarios", autenticaToken, async (req, res) => {
   res.json(users);
 });
 
-app.put("/usuarios:id", autenticaToken, async (req, res) => {
+app.put("/usuarios/:id", autenticaToken, async (req, res) => {
   try {
     const { name, email, password } = req.body;
     const data = { name, email };
@@ -160,7 +155,7 @@ app.put("/usuarios:id", autenticaToken, async (req, res) => {
   }
 });
 
-app.delete("/usuarios:id", autenticaToken, async (req, res) => {
+app.delete("/usuarios/:id", autenticaToken, async (req, res) => {
   try {
     await prisma.usuarios.delete({
       where: { id: req.params.id },
