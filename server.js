@@ -140,7 +140,7 @@ app.get("/usuarios", autenticaToken, async (req, res) => {
   res.json(users);
 });
 
-app.put("/usuarios/:id", autenticaToken, async (req, res) => {
+app.put("/usuarios:id", autenticaToken, async (req, res) => {
   try {
     const { name, email, password } = req.body;
     const data = { name, email };
@@ -160,7 +160,7 @@ app.put("/usuarios/:id", autenticaToken, async (req, res) => {
   }
 });
 
-app.delete("/usuarios/:id", autenticaToken, async (req, res) => {
+app.delete("/usuarios:id", autenticaToken, async (req, res) => {
   try {
     await prisma.usuarios.delete({
       where: { id: req.params.id },
