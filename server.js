@@ -11,7 +11,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// CORREÇÃO NO CORS: Links de localhost sem barras finais para evitar erros de preflight
+// CORS: Configurado corretamente sem barras finais para evitar erro 404/Preflight
 app.use(cors({
   origin: [
     "https://agenda-pj.vercel.app",
@@ -28,6 +28,7 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
+// Configuração do Nodemailer
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -36,14 +37,15 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-transporter.verify((error, success) => {
+transporter.verify((error) => {
   if (error) {
-    console.error("❌ Erro no e-mail:", error);
+    console.error("❌ Erro na conexão de e-mail:", error);
   } else {
     console.log("✅ E-mail pronto para uso.");
   }
 });
 
+// Middleware de Autenticação
 function autenticaToken(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: "Token não enviado" });
@@ -57,6 +59,8 @@ function autenticaToken(req, res, next) {
     return res.status(401).json({ error: "Token inválido ou expirado" });
   }
 }
+
+// --- ROTAS ---
 
 app.post("/usuarios", async (req, res) => {
   try {
@@ -101,11 +105,12 @@ app.post("/login", async (req, res) => {
       { expiresIn: "7d" }
     );
 
+    // Retorna 'token' e 'accessToken' para garantir compatibilidade com o frontend
     res.json({
       token: accessToken, 
       accessToken,
       refreshToken,
-      usuario: user
+      usuario: { id: user.id, name: user.name, email: user.email }
     });
   } catch (err) {
     res.status(500).json({ error: "Erro ao realizar login." });
@@ -135,7 +140,9 @@ app.get("/validate-token", autenticaToken, (req, res) => {
 
 app.get("/usuarios", autenticaToken, async (req, res) => {
   try {
-    const users = await prisma.usuarios.findMany();
+    const users = await prisma.usuarios.findMany({
+      select: { id: true, name: true, email: true } // Não retorna as senhas
+    });
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: "Erro ao listar usuários." });
@@ -173,7 +180,7 @@ app.delete("/usuarios/:id", autenticaToken, async (req, res) => {
   }
 });
 
-// DISPARO EM BACKGROUND: A API responde na hora e o Nodemailer trabalha sozinho
+// ENVIO DE E-MAIL EM BACKGROUND: Corrigido para ser rápido e não travar o fluxo
 app.post("/enviar-email", autenticaToken, async (req, res) => {
   const { to, subject, message } = req.body;
   if (!to || !subject || !message) {
@@ -187,14 +194,15 @@ app.post("/enviar-email", autenticaToken, async (req, res) => {
     html: `<div style="font-family: Arial;">${message}</div>`,
   };
 
-  // Sem o await aqui, o servidor não fica travado esperando o Gmail
+  // Dispara o envio e responde imediatamente ao frontend
   transporter.sendMail(mailOptions)
-    .then(info => console.log("📧 E-mail enviado em background:", info.messageId))
-    .catch(err => console.error("❌ Erro ao enviar e-mail:", err));
+    .then(info => console.log("📧 E-mail enviado com sucesso:", info.messageId))
+    .catch(err => console.error("❌ Erro ao enviar e-mail em background:", err));
 
   res.json({ message: "Processo de envio iniciado." });
 });
 
+// Inicialização do servidor
 const port = process.env.PORT || 3000;
 app.listen(port, "0.0.0.0", () => {
   console.log(`🚀 Servidor rodando na porta ${port}`);
