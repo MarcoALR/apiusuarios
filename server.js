@@ -11,7 +11,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// CORREÇÃO NO CORS: Removidas as barras finais dos links de localhost para evitar erros de pré-venda (preflight)
+// CORREÇÃO NO CORS: Links de localhost sem barras finais para evitar erros de preflight
 app.use(cors({
   origin: [
     "https://agenda-pj.vercel.app",
@@ -77,36 +77,39 @@ app.post("/usuarios", async (req, res) => {
 });
 
 app.post("/login", async (req, res) => {
-  const { login, password } = req.body;
+  try {
+    const { login, password } = req.body;
 
-  const user = await prisma.usuarios.findFirst({
-    where: { OR: [{ email: login }, { name: login }] },
-  });
+    const user = await prisma.usuarios.findFirst({
+      where: { OR: [{ email: login }, { name: login }] },
+    });
 
-  if (!user) return res.status(401).json({ error: "Email ou senha inválidos" });
+    if (!user) return res.status(401).json({ error: "Email ou senha inválidos" });
 
-  const valid = await bcrypt.compare(password, user.password);
-  if (!valid) return res.status(401).json({ error: "Email ou senha inválidos" });
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ error: "Email ou senha inválidos" });
 
-  const accessToken = jwt.sign(
-    { id: user.id, email: user.email },
-    JWT_SECRET,
-    { expiresIn: "1h" }
-  );
+    const accessToken = jwt.sign(
+      { id: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: "1h" }
+    );
 
-  const refreshToken = jwt.sign(
-    { id: user.id, email: user.email },
-    JWT_SECRET,
-    { expiresIn: "7d" }
-  );
+    const refreshToken = jwt.sign(
+      { id: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
-  // CORREÇÃO: Enviando o campo 'token' para compatibilidade com o teu frontend
-  res.json({
-    token: accessToken, 
-    accessToken,
-    refreshToken,
-    usuario: user
-  });
+    res.json({
+      token: accessToken, 
+      accessToken,
+      refreshToken,
+      usuario: user
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao realizar login." });
+  }
 });
 
 app.post("/refresh-token", (req, res) => {
@@ -131,8 +134,12 @@ app.get("/validate-token", autenticaToken, (req, res) => {
 });
 
 app.get("/usuarios", autenticaToken, async (req, res) => {
-  const users = await prisma.usuarios.findMany();
-  res.json(users);
+  try {
+    const users = await prisma.usuarios.findMany();
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao listar usuários." });
+  }
 });
 
 app.put("/usuarios/:id", autenticaToken, async (req, res) => {
@@ -166,6 +173,7 @@ app.delete("/usuarios/:id", autenticaToken, async (req, res) => {
   }
 });
 
+// CORREÇÃO: Envio em background para não travar a resposta da API
 app.post("/enviar-email", autenticaToken, async (req, res) => {
   const { to, subject, message } = req.body;
   if (!to || !subject || !message) {
@@ -179,15 +187,15 @@ app.post("/enviar-email", autenticaToken, async (req, res) => {
     html: `<div style="font-family: Arial;">${message}</div>`,
   };
 
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    res.json({ message: "E-mail enviado com sucesso!", info });
-  } catch {
-    res.status(500).json({ error: "Erro ao enviar e-mail." });
-  }
+  // Dispara o e-mail e responde imediatamente para o frontend não ficar esperando
+  transporter.sendMail(mailOptions)
+    .then(info => console.log("📧 E-mail enviado:", info.messageId))
+    .catch(err => console.error("❌ Erro ao enviar e-mail:", err));
+
+  res.json({ message: "Processo de envio de e-mail iniciado." });
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
+app.listen(port, "0.0.0.0", () => {
   console.log(`🚀 Servidor rodando na porta ${port}`);
 });
