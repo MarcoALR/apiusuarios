@@ -22,13 +22,10 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 function autenticaToken(req, res, next) {
   const authHeader = req.headers.authorization;
-
   if (!authHeader) {
     return res.status(401).json({ error: "Token não enviado" });
   }
-
   const token = authHeader.split(" ")[1];
-
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
@@ -38,7 +35,8 @@ function autenticaToken(req, res, next) {
   }
 }
 
-app.post("/send-email", autenticaToken, async (req, res) => {
+// ROTA OTIMIZADA: Agora ela não espera o Gmail responder
+app.post("/send-email", autenticaToken, (req, res) => {
   const { to, subject, message } = req.body;
 
   if (!transporter) {
@@ -60,14 +58,16 @@ app.post("/send-email", autenticaToken, async (req, res) => {
     `,
   };
 
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ Email enviado para ${to}`);
-    res.status(200).json({ message: "Email enviado com sucesso!", info });
-  } catch (error) {
-    console.error("❌ Erro ao enviar email:", error);
-    res.status(500).json({ error: "Erro ao enviar email." });
-  }
+  // 1. DISPARAMOS O ENVIO (sem await)
+  transporter.sendMail(mailOptions)
+    .then(info => console.log(`✅ Email enviado em background para ${to}`))
+    .catch(error => console.error("❌ Erro no envio silencioso:", error));
+
+  // 2. RESPONDEMOS AO USUÁRIO NA HORA
+  // O Frontend recebe o OK em milissegundos
+  res.status(200).json({ 
+    message: "Solicitação de envio recebida! O email será processado em background." 
+  });
 });
 
 const port = process.env.PORT_EMAIL || 4000;
