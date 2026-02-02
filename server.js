@@ -173,7 +173,7 @@ app.delete("/usuarios/:id", autenticaToken, async (req, res) => {
   }
 });
 
-// CORREÇÃO: Envio em background para não travar a resposta da API
+// DISPARO EM BACKGROUND: A API responde na hora e o Nodemailer trabalha sozinho
 app.post("/enviar-email", autenticaToken, async (req, res) => {
   const { to, subject, message } = req.body;
   if (!to || !subject || !message) {
@@ -187,12 +187,12 @@ app.post("/enviar-email", autenticaToken, async (req, res) => {
     html: `<div style="font-family: Arial;">${message}</div>`,
   };
 
-  // Dispara o e-mail e responde imediatamente para o frontend não ficar esperando
+  // Sem o await aqui, o servidor não fica travado esperando o Gmail
   transporter.sendMail(mailOptions)
-    .then(info => console.log("📧 E-mail enviado:", info.messageId))
+    .then(info => console.log("📧 E-mail enviado em background:", info.messageId))
     .catch(err => console.error("❌ Erro ao enviar e-mail:", err));
 
-  res.json({ message: "Processo de envio de e-mail iniciado." });
+  res.json({ message: "Processo de envio iniciado." });
 });
 
 const port = process.env.PORT || 3000;
