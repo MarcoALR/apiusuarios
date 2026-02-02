@@ -11,6 +11,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
+// CORREÇÃO NO CORS: Removidas as barras finais dos links de localhost para evitar erros de pré-venda (preflight)
 app.use(cors({
   origin: [
     "https://agenda-pj.vercel.app",
@@ -77,6 +78,7 @@ app.post("/usuarios", async (req, res) => {
 
 app.post("/login", async (req, res) => {
   const { login, password } = req.body;
+
   const user = await prisma.usuarios.findFirst({
     where: { OR: [{ email: login }, { name: login }] },
   });
@@ -86,13 +88,84 @@ app.post("/login", async (req, res) => {
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) return res.status(401).json({ error: "Email ou senha inválidos" });
 
-  const accessToken = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: "1h" });
-  const refreshToken = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
+  const accessToken = jwt.sign(
+    { id: user.id, email: user.email },
+    JWT_SECRET,
+    { expiresIn: "1h" }
+  );
 
-  res.json({ token: accessToken, accessToken, refreshToken, usuario: user });
+  const refreshToken = jwt.sign(
+    { id: user.id, email: user.email },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+
+  // CORREÇÃO: Enviando o campo 'token' para compatibilidade com o teu frontend
+  res.json({
+    token: accessToken, 
+    accessToken,
+    refreshToken,
+    usuario: user
+  });
 });
 
-// --- ROTA DE E-MAIL OTIMIZADA (BACKGROUND DISPATCH) ---
+app.post("/refresh-token", (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken) return res.status(401).json({ error: "Refresh token não enviado" });
+
+  try {
+    const decoded = jwt.verify(refreshToken, JWT_SECRET);
+    const newAccessToken = jwt.sign(
+      { id: decoded.id, email: decoded.email },
+      JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+    res.json({ token: newAccessToken, accessToken: newAccessToken });
+  } catch {
+    res.status(401).json({ error: "Refresh token inválido ou expirado" });
+  }
+});
+
+app.get("/validate-token", autenticaToken, (req, res) => {
+  res.status(200).json({ valid: true, userId: req.user.id });
+});
+
+app.get("/usuarios", autenticaToken, async (req, res) => {
+  const users = await prisma.usuarios.findMany();
+  res.json(users);
+});
+
+app.put("/usuarios/:id", autenticaToken, async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    const data = { name, email };
+
+    if (password) {
+      data.password = await bcrypt.hash(password, 10);
+    }
+
+    const updated = await prisma.usuarios.update({
+      where: { id: req.params.id },
+      data,
+    });
+
+    res.json(updated);
+  } catch {
+    res.status(500).json({ error: "Erro ao atualizar usuário." });
+  }
+});
+
+app.delete("/usuarios/:id", autenticaToken, async (req, res) => {
+  try {
+    await prisma.usuarios.delete({
+      where: { id: req.params.id },
+    });
+    res.json({ message: "Usuário deletado com sucesso!" });
+  } catch {
+    res.status(500).json({ error: "Erro ao deletar usuário." });
+  }
+});
+
 app.post("/enviar-email", autenticaToken, async (req, res) => {
   const { to, subject, message } = req.body;
   if (!to || !subject || !message) {
@@ -106,36 +179,11 @@ app.post("/enviar-email", autenticaToken, async (req, res) => {
     html: `<div style="font-family: Arial;">${message}</div>`,
   };
 
-  // REMOVIDO O AWAIT: O servidor envia o e-mail "por fora" e responde logo abaixo
-  transporter.sendMail(mailOptions)
-    .then(info => console.log("📧 E-mail enviado com sucesso:", info.messageId))
-    .catch(err => console.error("❌ Erro ao enviar e-mail em background:", err));
-
-  // Resposta instantânea para o Frontend
-  res.json({ message: "Envio de e-mail processado." });
-});
-
-app.put("/usuarios/:id", autenticaToken, async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-    const data = { name, email };
-    if (password) data.password = await bcrypt.hash(password, 10);
-    const updated = await prisma.usuarios.update({
-      where: { id: req.params.id },
-      data,
-    });
-    res.json(updated);
+    const info = await transporter.sendMail(mailOptions);
+    res.json({ message: "E-mail enviado com sucesso!", info });
   } catch {
-    res.status(500).json({ error: "Erro ao atualizar usuário." });
-  }
-});
-
-app.delete("/usuarios/:id", autenticaToken, async (req, res) => {
-  try {
-    await prisma.usuarios.delete({ where: { id: req.params.id } });
-    res.json({ message: "Usuário deletado com sucesso!" });
-  } catch {
-    res.status(500).json({ error: "Erro ao deletar usuário." });
+    res.status(500).json({ error: "Erro ao enviar e-mail." });
   }
 });
 
